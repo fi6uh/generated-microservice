@@ -50,3 +50,5 @@ clean:
 	@docker rm $(UI_CONTAINER_NAME) $(MIDDLEWARE_CONTAINER_NAME) $(DB_CONTAINER_NAME) || true
 	@echo "Removing Docker network..."
 	@docker network rm $(NETWORK_NAME) || true
+
+restart: clean build run
