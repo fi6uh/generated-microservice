@@ -5,22 +5,16 @@
 This service is composed of three containers: UI, Middleware, and PostgreSQL
 
 ```mermaid
-graph TD
-  subgraph clusterUI
-    style[style=bold, color=blue]
-    UI["UI Container"]
-  end
-
-  subgraph clusterMiddleware
-    style[style=bold, color=green]
-    Middleware["Middleware Container"]
-  end
-
-  subgraph clusterPostgres
-    style[style=bold, color=orange]
-    Postgres["PostgreSQL Container"]
-  end
-
+graph LR
+  style[style=bold, color=blue]
+  UI["UI Container"]
+  
+  style[style=bold, color=green]
+  Middleware["Middleware Container"]
+  
+  style[style=bold, color=orange]
+  Postgres["PostgreSQL Container"]
+  
   UI -->|Requests| Middleware
   Middleware -->|Database Operations| Postgres
 ```
