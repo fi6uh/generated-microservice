@@ -1,3 +1,5 @@
+import os
+import json
 from flask import Flask, jsonify
 from database_connector import DatabaseConnector
 import retrying
@@ -19,21 +21,38 @@ def wait_for_database():
     db_connector.connect()
     db_connector.disconnect()
 
-def check_and_create_test_data_table():
+def create_table_from_schema(table_name, schema):
     try:
-        wait_for_database()  # Wait until the database is online before proceeding
         db_connector.connect()
-        result = db_connector.execute_query("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'test_data')")
-        table_exists = result[0][0]
+        formatted_schema = format_schema_for_db(schema)
+        create_table_query = f"CREATE TABLE {table_name} ({formatted_schema})"
+        db_connector.execute_query(create_table_query)
+    finally:
+        db_connector.disconnect()
 
-        if not table_exists:
-            # Create the table with a basic example schema
-            schema = {
-                'id': 'SERIAL PRIMARY KEY',
-                'name': 'VARCHAR(255)',
-                'age': 'INTEGER'
-            }
-            db_connector.create_table('test_data', schema)
+def format_schema_for_db(schema):
+    # Convert the schema dictionary to a string that can be used in a CREATE TABLE query
+    formatted_schema = ', '.join([f'{column} {datatype}' for column, datatype in schema.items()])
+    return formatted_schema
+
+def check_and_create_tables_from_schemas():
+    schemas_folder = os.path.join(os.path.dirname(__file__), 'schemas')
+    for filename in os.listdir(schemas_folder):
+        if filename.endswith('.json'):
+            schema_path = os.path.join(schemas_folder, filename)
+            with open(schema_path, 'r') as schema_file:
+                schema_data = json.load(schema_file)
+                table_name = schema_data.get('table_name')
+                table_schema = schema_data.get('schema')
+                if table_name and table_schema:
+                    if not table_exists(table_name):
+                        create_table_from_schema(table_name, table_schema)
+
+def table_exists(table_name):
+    try:
+        db_connector.connect()
+        result = db_connector.execute_query(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
+        return result[0][0]
     finally:
         db_connector.disconnect()
 
@@ -41,7 +60,6 @@ def check_and_create_test_data_table():
 def get_data():
     try:
         db_connector.connect()
-        # Assuming you already have data in the "test_data" table
         result = db_connector.execute_query("SELECT * FROM test_data")
         return jsonify(result)
     finally:
