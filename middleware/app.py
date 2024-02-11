@@ -1,5 +1,6 @@
 import os
 import json
+import csv
 from flask import Flask, jsonify
 from database_connector import DatabaseConnector
 import retrying
@@ -26,6 +27,7 @@ def create_table_from_schema(table_name, schema):
         db_connector.connect()
         formatted_schema = format_schema_for_db(schema)
         create_table_query = f"CREATE TABLE {table_name} ({formatted_schema})"
+        print(create_table_query)
         db_connector.execute_query(create_table_query)
     finally:
         db_connector.disconnect()
@@ -39,22 +41,30 @@ def check_and_create_tables_from_schemas():
     schemas_folder = os.path.join(os.path.dirname(__file__), 'schemas')
     for filename in os.listdir(schemas_folder):
         if filename.endswith('.json'):
-            schema_path = os.path.join(schemas_folder, filename)
-            with open(schema_path, 'r') as schema_file:
-                schema_data = json.load(schema_file)
-                table_name = schema_data.get('table_name')
-                table_schema = schema_data.get('schema')
-                if table_name and table_schema:
-                    if not table_exists(table_name):
-                        create_table_from_schema(table_name, table_schema)
+            table_name = os.path.splitext(filename)[0]
+            if not table_exists(table_name):
+                schema_path = os.path.join(schemas_folder, filename)
+                with open(schema_path, 'r') as schema_file:
+                    table_schema = json.load(schema_file)
+                    create_table_from_schema(table_name, table_schema)
 
 def table_exists(table_name):
     try:
         db_connector.connect()
-        result = db_connector.execute_query(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')")
-        return result[0][0]
+        query = f"SELECT table_name FROM information_schema.tables WHERE table_name = %s"
+        result = db_connector.execute_query(query, (table_name,))
+        return bool(result)
     finally:
         db_connector.disconnect()
+
+def insert_data_from_csvs():
+    init_data_folder = os.path.join(os.path.dirname(__file__), 'init_data')
+    for filename in os.listdir(init_data_folder):
+        if filename.endswith('.csv'):
+            table_name = os.path.splitext(filename)[0]
+            if table_exists(table_name):
+                csv_path = os.path.join(init_data_folder, filename)
+                db_connector.copy_from_csv(table_name, csv_path)
 
 @app.route('/api/data')
 def get_data():
@@ -66,5 +76,7 @@ def get_data():
         db_connector.disconnect()
 
 if __name__ == '__main__':
-    check_and_create_test_data_table()  # Call this function to check and create the table before running the application
+    wait_for_database()
+    check_and_create_tables_from_schemas()
+    insert_data_from_csvs()
     app.run(host='0.0.0.0', port=5150)

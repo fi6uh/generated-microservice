@@ -1,4 +1,5 @@
 import psycopg2
+from psycopg2 import sql
 
 class DatabaseConnector:
     def __init__(self, host, port, database, user, password):
@@ -8,6 +9,7 @@ class DatabaseConnector:
         self.user = user
         self.password = password
         self.connection = None
+        self.cursor = None
 
     def connect(self):
         try:
@@ -18,26 +20,41 @@ class DatabaseConnector:
                 user=self.user,
                 password=self.password
             )
+            self.cursor = self.connection.cursor()
             print("Connected to the database.")
         except psycopg2.Error as e:
             print(f"Error: Unable to connect to the database. {e}")
             raise
 
+    def copy_from_csv(self, table_name, csv_path):
+        try:
+            self.connect()
+            with open(csv_path, 'r') as csv_file:
+                # Use a copy_from() method to copy data from the CSV file to the table
+                self.cursor.copy_from(csv_file, table_name, sep=',', null='')
+            self.connection.commit()
+        except Exception as e:
+            print(f"Error copying data from CSV to table: {e}")
+            self.connection.rollback()
+        finally:
+            self.disconnect()
+
     def execute_query(self, query, params=None):
         try:
-            with self.connection.cursor() as cursor:
-                if params:
-                    cursor.execute(query, params)
-                else:
-                    cursor.execute(query)
-                result = cursor.fetchall()
-                return result
-        except psycopg2.Error as e:
-            print(f"Error: Unable to execute query. {e}")
-            raise
+            self.cursor.execute(sql.SQL(query), params)
+            # Commit the transaction for queries that modify data
+            if query.strip().lower().startswith('create') or query.strip().lower().startswith('insert') or query.strip().lower().startswith('update') or query.strip().lower().startswith('delete'):
+                self.connection.commit()
+            # For SELECT queries or queries that don't return results, no need to fetchall()
+            if query.strip().lower().startswith('select'):
+                return self.cursor.fetchall()
+        except Exception as e:
+            print(f"Error executing query: {e}")
+            self.connection.rollback()
 
     def disconnect(self):
         if self.connection:
+            self.cursor.close()
             self.connection.close()
             print("Disconnected from the database.")
 
