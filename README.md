@@ -6,13 +6,8 @@ This service is composed of three containers: UI, Middleware, and PostgreSQL
 
 ```mermaid
 graph LR;
-  style[style=bold, color=blue];
   UI["UI Container"];
-  
-  style[style=bold, color=green];
   Middleware["Middleware Container"];
-  
-  style[style=bold, color=orange];
   Postgres["PostgreSQL Container"];
   
   UI -->|Requests| Middleware;
